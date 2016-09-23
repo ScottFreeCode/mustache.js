@@ -76,6 +76,12 @@ If your templates use partials you should pass paths to partials using `-p` flag
 $ mustache -p path/to/partial1.mustache -p path/to/partial2.mustache dataView.json myTemplate.mustache
 ```
 
+If you want to get an error when variables are missing, pass the `--strict` flag:
+
+```bash
+$ mustache --strict dataView.json myTemplate.mustache
+```
+
 ## Who uses mustache.js?
 
 An updated list of mustache.js users is kept [on the Github wiki](http://wiki.github.com/janl/mustache.js/beard-competition). Add yourself or your company if you use mustache.js!
@@ -241,6 +247,18 @@ Output:
 * Michael Jackson
 * RIP
 ```
+
+By default, Mustache will treat missing variables as an empty string; to get an error instead, set `mustache.strictVariables` to `true` before calling `render`:
+
+```javascript
+mustache.strictVariables = true
+try {
+  var output = mustache.render(template, view);
+} catch (error) {
+  console.log(error);
+}
+```
+> ReferenceError: Missing variables: x, y, z
 
 ### Sections
 
