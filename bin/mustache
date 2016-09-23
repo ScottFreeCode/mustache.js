@@ -14,6 +14,10 @@ while ((partialArgIndex = process.argv.indexOf('-p')) > -1) {
   partialsPaths.push(process.argv.splice(partialArgIndex, 2)[1]);
 }
 
+if (Mustache.strictVariables = (process.argv.indexOf('--strict') > -1)) {
+  process.argv.splice(process.argv.indexOf('--strict'), 1);
+}
+
 var viewArg = process.argv[2];
 var templateArg = process.argv[3];
 var outputArg = process.argv[4];
@@ -23,7 +27,7 @@ if (hasVersionArg()) {
 }
 
 if (!templateArg || !viewArg) {
-  console.error('Syntax: mustache [-p <partial>]* <view> <template> [output]');
+  console.error('Syntax: mustache [--strict] [-p <partial>]* <view> <template> [output]');
   process.exit(1);
 }
 

@@ -461,10 +461,10 @@
    * also be a function that is used to load partial templates on the fly
    * that takes a single argument: the name of the partial.
    */
-  Writer.prototype.render = function render (template, view, partials) {
+  Writer.prototype.render = function render (template, view, partials, missingVariables) {
     var tokens = this.parse(template);
     var context = (view instanceof Context) ? view : new Context(view);
-    return this.renderTokens(tokens, context, partials, template);
+    return this.renderTokens(tokens, context, partials, template, missingVariables);
   };
 
   /**
@@ -476,7 +476,7 @@
    * If the template doesn't use higher-order sections, this argument may
    * be omitted.
    */
-  Writer.prototype.renderTokens = function renderTokens (tokens, context, partials, originalTemplate) {
+  Writer.prototype.renderTokens = function renderTokens (tokens, context, partials, originalTemplate, missingVariables) {
     var buffer = '';
 
     var token, symbol, value;
@@ -485,12 +485,17 @@
       token = tokens[i];
       symbol = token[0];
 
-      if (symbol === '#') value = this.renderSection(token, context, partials, originalTemplate);
-      else if (symbol === '^') value = this.renderInverted(token, context, partials, originalTemplate);
-      else if (symbol === '>') value = this.renderPartial(token, context, partials, originalTemplate);
-      else if (symbol === '&') value = this.unescapedValue(token, context);
-      else if (symbol === 'name') value = this.escapedValue(token, context);
-      else if (symbol === 'text') value = this.rawValue(token);
+      if (symbol === '#') value = this.renderSection(token, context, partials, originalTemplate, missingVariables);
+      else if (symbol === '^') value = this.renderInverted(token, context, partials, originalTemplate, missingVariables);
+      else if (symbol === '>') value = this.renderPartial(token, context, partials, originalTemplate, missingVariables);
+      else {
+        if (symbol === '&') value = this.unescapedValue(token, context);
+        else if (symbol === 'name') value = this.escapedValue(token, context);
+        else if (symbol === 'text') value = this.rawValue(token);
+
+        if (value === undefined)
+          missingVariables.push(token[1]);
+      }
 
       if (value !== undefined)
         buffer += value;
@@ -499,7 +504,7 @@
     return buffer;
   };
 
-  Writer.prototype.renderSection = function renderSection (token, context, partials, originalTemplate) {
+  Writer.prototype.renderSection = function renderSection (token, context, partials, originalTemplate, missingVariables) {
     var self = this;
     var buffer = '';
     var value = context.lookup(token[1]);
@@ -507,17 +512,17 @@
     // This function is used to render an arbitrary template
     // in the current context by higher-order sections.
     function subRender (template) {
-      return self.render(template, context, partials);
+      return self.render(template, context, partials, missingVariables);
     }
 
     if (!value) return;
 
     if (isArray(value)) {
       for (var j = 0, valueLength = value.length; j < valueLength; ++j) {
-        buffer += this.renderTokens(token[4], context.push(value[j]), partials, originalTemplate);
+        buffer += this.renderTokens(token[4], context.push(value[j]), partials, originalTemplate, missingVariables);
       }
     } else if (typeof value === 'object' || typeof value === 'string' || typeof value === 'number') {
-      buffer += this.renderTokens(token[4], context.push(value), partials, originalTemplate);
+      buffer += this.renderTokens(token[4], context.push(value), partials, originalTemplate, missingVariables);
     } else if (isFunction(value)) {
       if (typeof originalTemplate !== 'string')
         throw new Error('Cannot use higher-order sections without the original template');
@@ -528,26 +533,26 @@
       if (value != null)
         buffer += value;
     } else {
-      buffer += this.renderTokens(token[4], context, partials, originalTemplate);
+      buffer += this.renderTokens(token[4], context, partials, originalTemplate, missingVariables);
     }
     return buffer;
   };
 
-  Writer.prototype.renderInverted = function renderInverted (token, context, partials, originalTemplate) {
+  Writer.prototype.renderInverted = function renderInverted (token, context, partials, originalTemplate, missingVariables) {
     var value = context.lookup(token[1]);
 
     // Use JavaScript's definition of falsy. Include empty arrays.
     // See https://github.com/janl/mustache.js/issues/186
     if (!value || (isArray(value) && value.length === 0))
-      return this.renderTokens(token[4], context, partials, originalTemplate);
+      return this.renderTokens(token[4], context, partials, originalTemplate, missingVariables);
   };
 
-  Writer.prototype.renderPartial = function renderPartial (token, context, partials) {
+  Writer.prototype.renderPartial = function renderPartial (token, context, partials, missingVariables) {
     if (!partials) return;
 
     var value = isFunction(partials) ? partials(token[1]) : partials[token[1]];
     if (value != null)
-      return this.renderTokens(this.parse(value), context, partials, value);
+      return this.renderTokens(this.parse(value), context, partials, value, missingVariables);
   };
 
   Writer.prototype.unescapedValue = function unescapedValue (token, context) {
@@ -569,6 +574,7 @@
   mustache.name = 'mustache.js';
   mustache.version = '2.2.1';
   mustache.tags = [ '{{', '}}' ];
+  mustache.strictVariables = false;
 
   // All high-level mustache.* functions use this writer.
   var defaultWriter = new Writer();
@@ -600,7 +606,11 @@
                           'argument for mustache#render(template, view, partials)');
     }
 
-    return defaultWriter.render(template, view, partials);
+    var missingVariables = [];
+    var rendered = defaultWriter.render(template, view, partials, missingVariables);
+    if (missingVariables.length && mustache.strictVariables)
+      throw new ReferenceError("Missing variables: " + missingVariables.join(", "));
+    return rendered;
   };
 
   // This is here for backwards compatibility with 0.4.x.,
