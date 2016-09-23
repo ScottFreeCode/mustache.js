@@ -464,6 +464,8 @@
   Writer.prototype.render = function render (template, view, partials, missingVariables) {
     var tokens = this.parse(template);
     var context = (view instanceof Context) ? view : new Context(view);
+    if (!missingVariables)
+      missingVariables = [];
     return this.renderTokens(tokens, context, partials, template, missingVariables);
   };
 
