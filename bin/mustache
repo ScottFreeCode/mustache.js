@@ -23,7 +23,7 @@ if (hasVersionArg()) {
 }
 
 if (!templateArg || !viewArg) {
-  console.error('Syntax: mustache <view> <template> [output]');
+  console.error('Syntax: mustache [-p <partial>]* <view> <template> [output]');
   process.exit(1);
 }
 
